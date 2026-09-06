@@ -46,13 +46,18 @@ abstract class SakuraMangas : KeiSource() {
     override fun Headers.Builder.configureHeaders(): Headers.Builder {
         set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         set("Accept-Language", "pt-BR,pt;q=0.9")
-        if (!Access.isAndroid) return this
-
-        val majorVersion = webViewUserAgent.substringAfter("Chrome/").substringBefore('.')
-        return set("User-Agent", webViewUserAgent)
+        val userAgent = if (Access.isAndroid) webViewUserAgent else get("User-Agent")!!
+        val majorVersion = userAgent.substringAfter("Chrome/").substringBefore('.')
+        val platform = when {
+            "Android" in userAgent -> "Android"
+            "Windows" in userAgent -> "Windows"
+            "Macintosh" in userAgent -> "macOS"
+            else -> "Linux"
+        }
+        return set("User-Agent", userAgent)
             .set("Sec-CH-UA", "\"Google Chrome\";v=\"$majorVersion\", \"Chromium\";v=\"$majorVersion\"")
-            .set("Sec-CH-UA-Mobile", "?1")
-            .set("Sec-CH-UA-Platform", "\"Android\"")
+            .set("Sec-CH-UA-Mobile", if ("Mobile" in userAgent) "?1" else "?0")
+            .set("Sec-CH-UA-Platform", "\"$platform\"")
             .set("Sec-Fetch-Site", "none")
             .set("Sec-Fetch-Mode", "navigate")
             .set("Sec-Fetch-User", "?1")
