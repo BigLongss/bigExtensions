@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.extension.pt.sakuramangas
 
+import android.webkit.JavascriptInterface
+import app.cash.quickjs.QuickJs
 import keiyoushi.utils.runWebView
 import keiyoushi.utils.toJsonString
 import okio.ByteString.Companion.decodeBase64
@@ -102,6 +104,8 @@ internal object Crypto {
         if (cipher.equals("Gungnir", ignoreCase = true)) return decipherKey(cipher, payload, subtoken)
 
         val implementation = script()
+        if (!Access.isAndroid) return decipherKeyOnJvm(cipher, payload, subtoken, implementation)
+
         val result = runWebView<String>(timeout = 10.seconds) {
             blockImages = true
             jsBridge("sakuraKey") { value ->
@@ -139,6 +143,42 @@ internal object Crypto {
             )
         }
         return decodeBase64(result)
+    }
+
+    private fun decipherKeyOnJvm(cipher: String, payload: String, subtoken: String, implementation: String): ByteArray = QuickJs.create().use { engine ->
+        engine.set(
+            "sakuraDigest",
+            Digest::class.java,
+            object : Digest {
+                @JavascriptInterface
+                override fun sha256(value: String): String = value.encodeUtf8().sha256().hex()
+            },
+        )
+        engine.evaluate(
+            """
+            globalThis.window = globalThis;
+            globalThis.CryptoUtils = {
+                sha256: async value => sakuraDigest.sha256(value),
+                hexToBytes: value => value.match(/../g).map(byte => parseInt(byte, 16))
+            };
+            $implementation
+            globalThis.sakuraResult = null;
+            window.YggdrasilCipherImplementations[${cipher.uppercase(Locale.ROOT).toJsonString()}](
+                ${decodeBase64(payload).map { it.toInt() and 255 }.toJsonString()},
+                ${subtoken.toJsonString()}
+            ).then(key => {
+                globalThis.sakuraResult = Array.from(key, char => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+            });
+            """.trimIndent(),
+        )
+        val result = engine.evaluate("globalThis.sakuraResult") as? String
+            ?: throw IOException("Não foi possível decifrar a chave $cipher do capítulo.")
+        result.decodeHex().toByteArray()
+    }
+
+    interface Digest {
+        @JavascriptInterface
+        fun sha256(value: String): String
     }
 
     fun decrypt(payload: String, secret: ByteArray, version: Int): ByteArray {

@@ -20,6 +20,8 @@ internal class Access {
     private val mutex = Mutex()
 
     suspend fun getPage(client: OkHttpClient, url: String, headers: Headers, baseUrl: String): Response {
+        if (!isAndroid) return client.get(url, headers)
+
         mutex.withLock {
             withContext(Dispatchers.Main) {
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.CUSTOM_REQUEST_HEADERS) &&
@@ -50,8 +52,10 @@ internal class Access {
         return client.get(url, headers)
     }
 
-    private companion object {
-        const val HEADER = "X-Requested-With"
-        const val VALUE = "XMLHttpRequest"
+    companion object {
+        val isAndroid = System.getProperty("java.vm.name") == "Dalvik"
+
+        private const val HEADER = "X-Requested-With"
+        private const val VALUE = "XMLHttpRequest"
     }
 }
