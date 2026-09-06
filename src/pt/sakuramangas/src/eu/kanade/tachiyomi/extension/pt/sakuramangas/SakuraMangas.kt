@@ -44,10 +44,12 @@ abstract class SakuraMangas : KeiSource() {
     }
 
     override fun Headers.Builder.configureHeaders(): Headers.Builder {
+        set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        set("Accept-Language", "pt-BR,pt;q=0.9")
+        if (!Access.isAndroid) return this
+
         val majorVersion = webViewUserAgent.substringAfter("Chrome/").substringBefore('.')
         return set("User-Agent", webViewUserAgent)
-            .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .set("Accept-Language", "pt-BR,pt;q=0.9")
             .set("Sec-CH-UA", "\"Google Chrome\";v=\"$majorVersion\", \"Chromium\";v=\"$majorVersion\"")
             .set("Sec-CH-UA-Mobile", "?1")
             .set("Sec-CH-UA-Platform", "\"Android\"")
