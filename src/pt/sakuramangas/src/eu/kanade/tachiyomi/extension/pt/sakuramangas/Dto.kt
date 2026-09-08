@@ -5,11 +5,13 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.toJsonString
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
+import okio.ByteString.Companion.decodeBase64
 import java.io.IOException
 
 @Serializable
@@ -137,14 +139,18 @@ internal class SignalDto(
 
 @Serializable
 internal class ReaderDto(
-    private val status: String,
-    private val data: ReaderDataDto? = null,
+    val status: String,
+    private val data: JsonElement? = null,
 ) {
-    suspend fun toPages(subtoken: String, chapterUrl: HttpUrl, imageAuth: String, cipherScript: suspend () -> String): List<Page> {
+    fun verification(subtoken: String): ReaderVerificationDto = data?.parseAs<VerificationEnvelope>()?.decode(subtoken)
+        ?: throw IOException("Resposta de verificação inválida.")
+
+    fun toPages(subtoken: String, chapterUrl: HttpUrl, imageAuth: String): List<Page> {
         if (status != "success") {
             throw IOException("Abra este capítulo na WebView e conclua a verificação do site. Depois tente novamente.")
         }
-        return data?.toPages(subtoken, chapterUrl, imageAuth, cipherScript).orEmpty()
+        val reader = data?.parseAs<ReaderDataDto>() ?: throw IOException("Resposta do leitor sem páginas.")
+        return reader.toPages(subtoken, chapterUrl, imageAuth)
     }
 }
 
@@ -154,8 +160,8 @@ internal class ReaderDataDto(
     private val encryptedImageKey: String,
     private val encryptedUrls: String,
 ) {
-    suspend fun toPages(subtoken: String, chapterUrl: HttpUrl, imageAuth: String, cipherScript: suspend () -> String): List<Page> {
-        val ephemeralKey = encryptedEphemeralKey.decrypt(subtoken, cipherScript)
+    fun toPages(subtoken: String, chapterUrl: HttpUrl, imageAuth: String): List<Page> {
+        val ephemeralKey = encryptedEphemeralKey.decrypt(subtoken)
         val imageKey = Crypto.decrypt(encryptedImageKey, ephemeralKey, 1)
         val decoded = Crypto.decrypt(encryptedUrls, imageKey, 0).toString(Charsets.UTF_8).parseAs<JsonElement>()
         val urls = if (decoded is JsonArray) decoded.parseAs<List<String>>() else decoded.parseAs<PageRangeDto>().urls()
@@ -168,8 +174,12 @@ internal class ReaderDataDto(
 }
 
 @Serializable
-internal class EphemeralKeyDto(private val cipher: String, private val payload: String) {
-    suspend fun decrypt(subtoken: String, script: suspend () -> String) = Crypto.decipherKey(cipher, payload, subtoken, script)
+internal class EphemeralKeyDto(
+    private val cipher: String,
+    private val payload: String,
+    private val mode: Int? = null,
+) {
+    fun decrypt(subtoken: String) = Ciphers.decrypt(cipher, payload, subtoken, mode)
 }
 
 @Serializable
@@ -188,3 +198,40 @@ internal class PageRangeDto(
 
 @Serializable
 internal class FilterDataDto(val genres: List<String>, val themes: List<String>)
+
+@Serializable
+internal class VerificationEnvelope(
+    private val encryptedEphemeralKey: EphemeralKeyDto? = null,
+    private val encryptedPayloadKey: String,
+    private val encryptedPayload: String,
+) {
+    fun decode(subtoken: String): ReaderVerificationDto {
+        val ephemeralKey = encryptedEphemeralKey?.decrypt(subtoken) ?: subtoken.toByteArray(Charsets.ISO_8859_1)
+        val key = Crypto.decrypt(encryptedPayloadKey, ephemeralKey, 1)
+        return Crypto.decrypt(encryptedPayload, key, 0).toString(Charsets.UTF_8).parseAs()
+    }
+}
+
+@Serializable
+internal class ReaderVerificationDto(
+    @SerialName("g") private val characters: String,
+    @SerialName("m") private val positions: List<Int>,
+    @SerialName("t") val token: String,
+    @SerialName("k") private val key: String,
+    @SerialName("w") private val wait: Long,
+) {
+    val waitMillis get() = wait.coerceIn(600L, 5000L)
+
+    fun payload(startedAt: Long): String {
+        require(positions.size in 3..6 && positions.distinct().size == positions.size && positions.all { it in characters.indices }) {
+            "Verificação do leitor inválida. Atualize a extensão."
+        }
+        val answer = positions.joinToString("") { characters[it].toString() }
+        val secret = key.decodeBase64()?.toByteArray()?.toString(Charsets.ISO_8859_1)
+            ?: throw IOException("Chave de verificação inválida.")
+        return Crypto.encrypt(VerificationAnswerDto(answer, startedAt, System.currentTimeMillis()).toJsonString(), secret)
+    }
+}
+
+@Serializable
+internal class VerificationAnswerDto(private val answer: String, private val renderedAt: Long, private val submittedAt: Long)

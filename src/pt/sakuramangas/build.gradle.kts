@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Sakura Mangás"
-    versionCode = 7
+    versionCode = 8
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
