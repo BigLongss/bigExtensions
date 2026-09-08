@@ -11,7 +11,6 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
-import keiyoushi.network.get
 import keiyoushi.network.post
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -21,6 +20,7 @@ import keiyoushi.utils.toJsonElement
 import keiyoushi.utils.toJsonString
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonElement
 import okhttp3.FormBody
 import okhttp3.Headers
@@ -117,7 +117,7 @@ abstract class SakuraMangas : KeiSource() {
         SMangaUpdate(newDetails.await(), newChapters.await())
     }
 
-    private suspend fun mangaPage(url: String): AccessPage = accessPage("$baseUrl${url.trimEnd('/')}/", "manga-id", 8006199014741981L)
+    private suspend fun mangaPage(url: String): AccessPage = accessPage("$baseUrl${url.trimEnd('/')}/", "manga-id", 7384916250743186L)
 
     private suspend fun details(page: AccessPage): SManga = client.post(
         "$baseUrl/dist/sakura/models/manga/..__obf__manga_info.php",
@@ -145,27 +145,41 @@ abstract class SakuraMangas : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = "$baseUrl${chapter.url.trimEnd('/')}/"
-        val page = accessPage(chapterUrl, "chapter-id", 9006099254140970L)
+        val page = accessPage(chapterUrl, "chapter-id", 8642073195864027L)
         val token = page.document.requiredAttr("meta[token]", "token")
         val subtoken = page.document.requiredAttr("meta[subtoken]", "subtoken")
         val imageAuth = Crypto.decodeMeta(page.document.requiredAttr("meta[name=poly-auth]", "content"))
-        val signal = SignalDto(page.id.toLong(), Instant.now().epochSecond, false, "normal", 0)
-        val signalKey = "kaguya13-signal-v1:$subtoken:${page.id}:$token"
-        val body = page.body()
-            .add("action", "read")
-            .add("chapter_id", page.id)
-            .add("token", token)
-            .add("reader_state", "")
-            .add("client_signal_payload", Crypto.encrypt(signal.toJsonString(), signalKey))
-            .build()
-        return client.post("$baseUrl/dist/sakura/models/capitulo/__sectron__capitulos__read.php", page.headers, body)
-            .parseAs<ReaderDto>().toPages(subtoken, chapterUrl.toHttpUrl(), imageAuth) {
-                val scriptUrl = page.document.requiredAttr("script[src*=/__ciphers/]", "abs:src").toHttpUrl()
-                require(scriptUrl.host == baseUrl.toHttpUrl().host && scriptUrl.encodedPath.startsWith("/dist/sakura/__ciphers/")) {
-                    "Módulo de cifra inválido. Atualize a extensão."
-                }
-                client.get(scriptUrl, headers).use { it.body.string() }
-            }
+        val endpoint = "$baseUrl/dist/sakura/models/capitulo/__sectron__capitulos__read.php"
+        suspend fun read(): ReaderDto {
+            val signal = SignalDto(page.id.toLong(), Instant.now().epochSecond, false, "normal", 0)
+            val signalKey = "kaguya12-signal-v1:$subtoken:${page.id}:$token"
+            val body = page.body()
+                .add("action", "read")
+                .add("chapter_id", page.id)
+                .add("token", token)
+                .add("reader_state", "")
+                .add("client_signal_payload", Crypto.encrypt(signal.toJsonString(), signalKey))
+                .build()
+            return client.post(endpoint, page.headers, body).parseAs()
+        }
+        var reader = read()
+        if (reader.status == "captcha_required") {
+            val verification = reader.verification(subtoken)
+            val startedAt = System.currentTimeMillis()
+            delay(verification.waitMillis)
+            val body = page.body()
+                .add("action", "captcha_verify")
+                .add("chapter_id", page.id)
+                .add("token", token)
+                .add("reader_state", "")
+                .add("captcha_token", verification.token)
+                .add("captcha_payload", verification.payload(startedAt))
+                .build()
+            val result = client.post(endpoint, page.headers, body).parseAs<ReaderDto>()
+            if (result.status != "captcha_ok") throw IOException("Não foi possível concluir a verificação do leitor. Tente novamente.")
+            reader = read()
+        }
+        return reader.toPages(subtoken, chapterUrl.toHttpUrl(), imageAuth)
     }
 
     override fun imageRequest(page: Page): Request {
@@ -196,9 +210,9 @@ abstract class SakuraMangas : KeiSource() {
             .set("Referer", url)
             .set("X-CSRF-TOKEN", document.requiredAttr("meta[name=csrf-token]", "content"))
             .set("X-Requested-With", "XMLHttpRequest")
-            .set("X-Client-Signature", "FTY9K-SY6WY-96LKPK")
-            .set("X-Verification-Key-1", "a1b2c3d4-g0h2-f3j4k5l6m7n7-7890-e5f5")
-            .set("X-Verification-Key-2", "z9y8x7w6-v2u3-3210t9s9-r7q6p5o4n3n2")
+            .set("X-Client-Signature", "Q8V4N7X2M9R5T6K3")
+            .set("X-Verification-Key-1", "3c8d6e4a-7f21-4b90-a6d5-19e2f7c8b4a1")
+            .set("X-Verification-Key-2", "b7a1e9f3-2d64-48c5-90ab-6f31d8e7c2b9")
             .build()
         AccessPage(document, document.requiredAttr("meta[$idAttribute]", idAttribute), authHeaders, challenge, Crypto.proof(challenge, key, userAgent))
     }
