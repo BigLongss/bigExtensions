@@ -2,7 +2,11 @@ package eu.kanade.tachiyomi.extension.pt.sakuramangas
 
 import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.decodeHex
+import okio.ByteString.Companion.toByteString
 import java.io.IOException
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 internal object Crypto {
     private const val CATALOG_KEY = "S4kur4_Fl0w3r_K3y_S3cr3t_2026"
@@ -73,7 +77,21 @@ internal object Crypto {
         }
     }
 
-    fun decrypt(payload: String, secret: ByteArray, version: Int): ByteArray = Kaguya.decrypt(payload, secret, version)
+    fun decrypt(payload: String, secret: ByteArray, version: Int): ByteArray {
+        val packet = decodeBase64(payload)
+        if (packet.size < 3 || packet[0] != 75.toByte() || packet[1] != 49.toByte() || packet[2] != 51.toByte()) {
+            return Kaguya.decrypt(payload, secret, version)
+        }
+        require(packet.size >= 32 && packet[3] == version.toByte()) { "Dados do leitor inválidos. Atualize a extensão." }
+        val header = packet.copyOfRange(0, 4)
+        val key = ("Kaguya13:key\u0000".toByteArray(Charsets.US_ASCII) + version.toByte() + secret)
+            .toByteString().sha256().toByteArray()
+        return Cipher.getInstance("AES/GCM/NoPadding").run {
+            init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, packet, 4, 12))
+            updateAAD(header)
+            doFinal(packet, 16, packet.size - 16)
+        }
+    }
 
     fun encrypt(value: String, secret: String): String = Kaguya.encrypt(value, secret)
 
