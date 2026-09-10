@@ -19,7 +19,7 @@ ARTIFACTS_DIR = Path.home() / "apk-artifacts"
 # The checked-out `repo` branch we publish into (the working directory).
 REPO_DIR = Path.cwd()
 
-ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/Biglongs1/bigExtensions@main"
+ICON_BASE_URL = f"https://cdn.jsdelivr.net/gh/{REPO_NAME}@main"
 RELEASE_BASE_URL = f"https://github.com/{REPO_NAME}/releases/download"
 OUTDATED_NOTICE = "Atualize o app para instalar as extensões"
 ASSET_LIMIT = 495  # Actual limit is 1000 but we upload 2 items per extension.
@@ -202,7 +202,7 @@ index = index_pb2.Index(
     badgeLabel="BIG",
     signingKey=os.environ["SIGNING_KEY_FINGERPRINT"],
     contact=index_pb2.Contact(
-        website="https://github.com/Biglongs1/bigExtensions",
+        website=f"https://github.com/{REPO_NAME}",
     ),
     extensionList=index_pb2.ExtensionList(extensions=final_extensions),
 )
