@@ -1,7 +1,8 @@
+import os
 import subprocess
 import time
 
-REPO_NAME = "Biglongs1/bigExtensions"
+REPO_NAME = os.getenv("GITHUB_REPOSITORY", "BigLongss/bigExtensions")
 RETRY_ATTEMPTS = 4
 RETRY_BASE_DELAY = 60
 
