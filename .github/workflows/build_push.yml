@@ -8,7 +8,6 @@ on:
       - '**'
       - '!**.md'
       - '!.github/**'
-      - '.github/scripts/**'
       - '.github/workflows/build_push.yml'
   workflow_dispatch:
 
@@ -36,6 +35,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Load publishing scripts
+        shell: bash
+        env:
+          CI_SCRIPTS: ${{ secrets.CI_SCRIPTS }}
+        run: |
+          mkdir -p .github/scripts
+          printf '%s' "$CI_SCRIPTS" | base64 --decode | tar -xz -C .github/scripts
 
       - name: Get last successful CI commit
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
@@ -128,6 +135,15 @@ jobs:
           ref: main
           path: main
           persist-credentials: false
+
+      - name: Load publishing scripts
+        working-directory: main
+        shell: bash
+        env:
+          CI_SCRIPTS: ${{ secrets.CI_SCRIPTS }}
+        run: |
+          mkdir -p .github/scripts
+          printf '%s' "$CI_SCRIPTS" | base64 --decode | tar -xz -C .github/scripts
 
       - name: Checkout repo branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
