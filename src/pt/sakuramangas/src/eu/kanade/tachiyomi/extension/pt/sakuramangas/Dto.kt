@@ -135,6 +135,7 @@ internal class SignalDto(
     private val forceCaptcha: Boolean,
     private val reason: String,
     private val count: Int,
+    private val touchPrimary: Boolean,
 )
 
 @Serializable

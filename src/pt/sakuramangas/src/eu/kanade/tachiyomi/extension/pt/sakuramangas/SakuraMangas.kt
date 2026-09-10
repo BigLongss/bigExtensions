@@ -149,18 +149,26 @@ abstract class SakuraMangas : KeiSource() {
         val token = page.document.requiredAttr("meta[token]", "token")
         val subtoken = page.document.requiredAttr("meta[subtoken]", "subtoken")
         val imageAuth = Crypto.decodeMeta(page.document.requiredAttr("meta[name=poly-auth]", "content"))
-        val endpoint = "$baseUrl/dist/sakura/models/capitulo/__sectron__capitulos__read.php"
+        val endpoint = "$baseUrl/dist/sakura/models/capitulo/__hellsing__capitulos__read.php".toHttpUrl()
+        fun signal(forceCaptcha: Boolean, reason: String, count: Int): String {
+            val value = SignalDto(page.id.toLong(), Instant.now().epochSecond, forceCaptcha, reason, count, Access.isAndroid)
+            return Crypto.encryptSignal(value.toJsonString(), subtoken, page.id, token)
+        }
+        suspend fun request(body: FormBody): ReaderDto = client.post(endpoint, page.headers, body).use { response ->
+            if (response.request.url != endpoint || response.body.contentType()?.subtype != "json") {
+                throw IOException("O site bloqueou a solicitação do leitor. Abra este capítulo na WebView e tente novamente.")
+            }
+            response.parseAs()
+        }
         suspend fun read(): ReaderDto {
-            val signal = SignalDto(page.id.toLong(), Instant.now().epochSecond, false, "normal", 0)
-            val signalKey = "kaguya12-signal-v1:$subtoken:${page.id}:$token"
             val body = page.body()
                 .add("action", "read")
                 .add("chapter_id", page.id)
                 .add("token", token)
                 .add("reader_state", "")
-                .add("client_signal_payload", Crypto.encrypt(signal.toJsonString(), signalKey))
+                .add("client_signal_payload", signal(false, "normal", 0))
                 .build()
-            return client.post(endpoint, page.headers, body).parseAs()
+            return request(body)
         }
         var reader = read()
         if (reader.status == "captcha_required") {
@@ -174,8 +182,9 @@ abstract class SakuraMangas : KeiSource() {
                 .add("reader_state", "")
                 .add("captcha_token", verification.token)
                 .add("captcha_payload", verification.payload(startedAt))
+                .add("client_signal_payload", signal(true, "captcha_verify", 1))
                 .build()
-            val result = client.post(endpoint, page.headers, body).parseAs<ReaderDto>()
+            val result = request(body)
             if (result.status != "captcha_ok") throw IOException("Não foi possível concluir a verificação do leitor. Tente novamente.")
             reader = read()
         }
