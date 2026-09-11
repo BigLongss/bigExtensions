@@ -16,6 +16,7 @@ import keiyoushi.utils.toJsonElement
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
+import okhttp3.CacheControl
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -100,7 +101,8 @@ abstract class NoxManga : KeiSource() {
                     .addQueryParameter("sort", "newest")
                     .build()
 
-                client.get(url).parseAs<ChapterListDto>().chapters.map { it.toSChapter(slug) }
+                client.get(url, cacheControl = CacheControl.FORCE_NETWORK)
+                    .parseAs<ChapterListDto>().chapters.map { it.toSChapter(slug) }
             } else {
                 chapters
             }
@@ -109,9 +111,10 @@ abstract class NoxManga : KeiSource() {
         SMangaUpdate(manga = details.await(), chapters = chapterList.await())
     }
 
-    override suspend fun getPageList(chapter: SChapter): List<Page> = client.get("$apiUrl/chapters/${chapter.url}?skip_view=true")
-        .parseAs<ChapterPagesDto>()
-        .toPageList()
+    override suspend fun getPageList(chapter: SChapter): List<Page> = client.get(
+        "$apiUrl/chapters/${chapter.url}?skip_view=true",
+        cacheControl = CacheControl.FORCE_NETWORK,
+    ).parseAs<ChapterPagesDto>().toPageList()
 
     override val supportsFilterFetching: Boolean get() = true
 
