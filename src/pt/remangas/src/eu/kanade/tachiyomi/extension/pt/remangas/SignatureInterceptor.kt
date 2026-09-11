@@ -1,11 +1,14 @@
 package eu.kanade.tachiyomi.extension.pt.remangas
 
-import android.util.Base64
+import okhttp3.CacheControl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
+import okio.ByteString.Companion.encodeUtf8
 import java.io.IOException
-import java.security.MessageDigest
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeSource
 
 class SignatureInterceptor(private val baseUrl: () -> String) : Interceptor {
 
@@ -18,7 +21,10 @@ class SignatureInterceptor(private val baseUrl: () -> String) : Interceptor {
             return chain.proceed(request)
         }
 
-        val response = chain.proceed(request.signedWith(signer ?: chain.fetchSigner(request)))
+        val currentSigner = signer?.takeIf {
+            it.userAgent == request.header("User-Agent") && it.createdAt.elapsedNow() < 15.minutes
+        } ?: chain.fetchSigner(request)
+        val response = chain.proceed(request.signedWith(currentSigner))
         if (response.code != 401) {
             return response
         }
@@ -29,8 +35,14 @@ class SignatureInterceptor(private val baseUrl: () -> String) : Interceptor {
 
     private fun Interceptor.Chain.fetchSigner(request: Request): Signer {
         val signerRequest = Request.Builder()
-            .url("${baseUrl()}$SIGNER_PATH")
+            .url(
+                "${baseUrl()}$SIGNER_PATH".toHttpUrl().newBuilder()
+                    .addQueryParameter("v", System.currentTimeMillis().toString())
+                    .build(),
+            )
             .headers(request.headers)
+            .header("Accept", "application/json")
+            .cacheControl(CacheControl.FORCE_NETWORK)
             .build()
 
         val script = proceed(signerRequest).use { response ->
@@ -40,17 +52,18 @@ class SignatureInterceptor(private val baseUrl: () -> String) : Interceptor {
             response.body.string()
         }
 
-        return script.toSigner().also { signer = it }
+        return script.toSigner(request.header("User-Agent")).also { signer = it }
     }
 
     private fun Request.signedWith(signer: Signer): Request = newBuilder()
+        .header("Accept", "application/json")
         .header("X-Site-ID", SITE_ID)
         .header("X-Web-Slot", signer.slot)
         .header("X-Web-Token", signer.token)
         .header("X-Web-Signature", signer.sign(method, url.encodedPath))
         .build()
 
-    private fun String.toSigner(): Signer {
+    private fun String.toSigner(userAgent: String?): Signer {
         val parts = ARRAY_REGEX.find(this)
             ?.groupValues?.get(1)
             ?.let { array -> STRING_REGEX.findAll(array).map { it.groupValues[1].reversed() }.toList() }
@@ -66,14 +79,16 @@ class SignatureInterceptor(private val baseUrl: () -> String) : Interceptor {
             slot = parts[slotIndex],
             key = parts.subList(keyBounds.first, keyBounds.second).joinToString(""),
             token = parts.subList(tokenStart, parts.size).joinToString(""),
+            userAgent = userAgent,
         )
     }
 
-    private class Signer(val slot: String, val key: String, val token: String) {
+    private class Signer(val slot: String, val key: String, val token: String, val userAgent: String?) {
+        val createdAt = TimeSource.Monotonic.markNow()
+
         fun sign(method: String, path: String): String {
             val payload = listOf(method.uppercase(), path, SITE_ID, slot, token, key).joinToString("|")
-            val digest = MessageDigest.getInstance("SHA-256").digest(payload.toByteArray())
-            return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+            return payload.encodeUtf8().sha256().base64Url().trimEnd('=')
         }
     }
 
