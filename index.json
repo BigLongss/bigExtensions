@@ -456,13 +456,13 @@
         "name": "NoxManga",
         "packageName": "eu.kanade.tachiyomi.extension.pt.remangas",
         "resources": {
-          "apkUrl": "https://github.com/BigLongss/bigExtensions/releases/download/5214c83/tachiyomi-pt.remangas-v1.6.54.apk",
+          "apkUrl": "https://github.com/BigLongss/bigExtensions/releases/download/e26a08c/tachiyomi-pt.remangas-v1.6.55.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/BigLongss/bigExtensions@main/src/pt/remangas/res/mipmap-xhdpi/ic_launcher.png",
-          "jarUrl": "https://github.com/BigLongss/bigExtensions/releases/download/5214c83/tachiyomi-pt.remangas-v1.6.54.jar"
+          "jarUrl": "https://github.com/BigLongss/bigExtensions/releases/download/e26a08c/tachiyomi-pt.remangas-v1.6.55.jar"
         },
         "extensionLib": "1.6",
-        "versionCode": "54",
-        "versionName": "1.6.54",
+        "versionCode": "55",
+        "versionName": "1.6.55",
         "contentWarning": "CONTENT_WARNING_MIXED",
         "sources": [
           {

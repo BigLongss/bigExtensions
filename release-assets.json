@@ -211,12 +211,12 @@
   },
   "eu.kanade.tachiyomi.extension.pt.remangas": {
     "apk": {
-      "name": "tachiyomi-pt.remangas-v1.6.54.apk",
-      "sha256": "7d7d95c4d19a14ff9bd6c57f2d8aeef28743fc3a62460e203455544744542d3a"
+      "name": "tachiyomi-pt.remangas-v1.6.55.apk",
+      "sha256": "bb736e48e76de6bcc890aa5d15af08a26b9bc509f2571e6cf1b4dea68bd7dc05"
     },
     "jar": {
-      "name": "tachiyomi-pt.remangas-v1.6.54.jar",
-      "sha256": "7ff99a5de9849946211e320ef4402f7b04e486626ddaf88289a36ef54cc0c751"
+      "name": "tachiyomi-pt.remangas-v1.6.55.jar",
+      "sha256": "e7d12c1a70fef5707502e95a0aee2ee61319bf1f30958fd4edd7ce55c51a39df"
     }
   },
   "eu.kanade.tachiyomi.extension.pt.sakuramangas": {
