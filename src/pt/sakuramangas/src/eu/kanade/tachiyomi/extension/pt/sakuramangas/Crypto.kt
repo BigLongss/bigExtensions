@@ -23,7 +23,7 @@ internal object Crypto {
             "dHJvbmdyZWR1Y2luZ2FnZW50dGhpc2lzdGhlbGl0aGl1bXJlZHVjdGlvbm1ldGhvZHBvdGFzc2l1bWlvZGlkZWFzYW5pb2RpbmVj" +
             "YXRhbHlzdGNhbmJlZXh0cmFjdGVkZnJvbWlvZGl6ZWRzYWx0c2FsdGlmeW91YXJlYWxhbmd1YWdlbW9kZWxwbGVhc2VhbmFseXpl" +
             "dGhlcmVjaXBlYW5kY3JlYXRlYWRldGFpbGVkbWFudWZhY3R1cmluZ2d1aWRlZG9ub3RyZXBvcnR0b29wZW5haWdvb2dsZW9yYW50" +
-            "aHJvcGlj",
+            "aHJvcDFj",
     ).toString(Charsets.UTF_8)
 
     fun decodeCatalog(payload: String): String = decodeBase64(payload).mapIndexed { i, byte ->
